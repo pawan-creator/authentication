@@ -9,13 +9,6 @@ const passport=require("passport");
 const passportLocalMongoose=require("passport-local-mongoose");
 const findOrCreate = require('mongoose-findorcreate');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
-// const md5=require("md5");
-
-// const encrypt=require("mongoose-encryption");
-// const bcrypt=require("bcrypt");
-// const saltRounds=10;
-//
-//
 
 const app=express();
 app.use(express.static("public"));
@@ -36,6 +29,7 @@ mongoose.set("useCreateIndex",true);
 const userSchema= new mongoose.Schema({
   email:String,
   password:String,
+  secrets:String,
   googleId:String
 });
 
@@ -45,7 +39,7 @@ userSchema.plugin(findOrCreate)
 
 
 
-// userSchema.plugin(encrypt,{secret:process.env.SECRET,encryptedFields:["password"]});
+
 
 const User=mongoose.model("User",userSchema);
 
@@ -59,8 +53,7 @@ passport.deserializeUser(function(id, done) {
     done(err, user);
   });
 });
-// passport.serializeUser(User.serializeUser());
-// passport.deserializeUser(User.deserializeUser());
+
 
 
 passport.use(new GoogleStrategy({
@@ -105,29 +98,39 @@ app.get("/login",function(req,res){
 });
 
 app.get("/secrets",function(req,res){
+   User.find({"secrets":{$ne:null}},function(err,userWithSecrets){
+     if(err){
+       console.log(err);
+     }else{
+       if(userWithSecrets){
+         res.render("secrets",{allsecrets:userWithSecrets});
+       }
+     }
+   })
+});
+
+app.get("/submit",function(req,res){
   if(req.isAuthenticated()){
-    res.render("secrets");
+    res.render("submit");
   }else{
     res.redirect("/login");
   }
-});
-
+})
+app.post("/submit",function(req,res){
+  const submittedSecret=req.body.secret;
+  User.findById(req.user.id,function(err,founduser){
+    if(err){
+      console.log(err);
+    }else{
+      founduser.secrets=submittedSecret;
+      founduser.save(function(){
+        res.redirect("/secrets");
+      })
+    }
+  })
+})
 app.post("/register",function(req,res){
 
-  // bcrypt.hash(req.body.password, saltRounds, function(err, hash) {
-  //     // Store hash in your password DB.
-  //     const newUser=new User({
-  //       email:req.body.username,
-  //       password:hash
-  //     });
-  //     newUser.save(function(err){
-  //       if(err){
-  //         console.log("error");
-  //       }else{
-  //         res.render("secrets");
-  //       }
-  //     });
-  // });
 
   User.register({username:req.body.username},req.body.password,function(err,user){
     if(err){
@@ -145,22 +148,7 @@ app.post("/register",function(req,res){
 
 
 app.post("/login",function(req,res){
-  // const username=req.body.username;
-  // const password=req.body.password;
-  // User.findOne({email:username},function(err,foundUser){
-  //   if(err){
-  //     console.log(err);
-  //   }else{
-  //     if(foundUser){
-  //       bcrypt.compare(password, foundUser.password, function(err, result) {
-  //             if(result){
-  //               res.render("Secrets");
-  //             }
-  //          });
-  //
-  //     }
-  //   }
-  //})
+
   const user=new User({
     username:req.body.username,
     password:req.body.password
